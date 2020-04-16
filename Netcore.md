@@ -1,4 +1,4 @@
-1，aspnetcore的启动顺序
+**1，aspnetcore的启动顺序**
 
 ```
 >ConfigureWebHostDefaults
@@ -8,7 +8,7 @@
 >Startip.Configure
 ```
 
-2，依赖注入的核心类型
+**2，依赖注入的核心类型**
 
 ```
 >IServiceCollection
@@ -17,7 +17,7 @@
 >IServiceScope
 ```
 
-3，生命周期
+**3，生命周期**
 
 ```
 单例，作用域，瞬时(通过显示hashcode来判断)
@@ -26,7 +26,7 @@
 瞬时：每次调用不一样
 ```
 
-4，容器注入
+**4，容器注入**
 
 ```
 public interface IServiceProviderFactory<TContainerBuilder>
@@ -47,7 +47,7 @@ public static IHostBuilder CreateHostBuilder(string[] args) =>
     });
 ```
 
-5，aop
+**5，aop**
 
 ```
 //创建拦截器,实现IInterceptor接口
@@ -68,7 +68,7 @@ public class MyInterceptor : IInterceptor
 
 ```
 
-6，配置
+**6，配置**
 
 ```
 //核心组件包
@@ -79,7 +79,7 @@ public class MyInterceptor : IInterceptor
 
 ```
 
-7，配置跟踪
+**7，配置跟踪**
 
 ```
 IChangeToken IConfiguration.GetReloadToken()
@@ -87,7 +87,7 @@ IChangeToken IConfiguration.GetReloadToken()
 
 ```
 
-8，编译过程
+**8，编译过程**
 
 ```
 >c#/VB project
@@ -98,14 +98,14 @@ IChangeToken IConfiguration.GetReloadToken()
 >IIS需要安装dotnet-hosting+dotnet-sdk
 ```
 
-9，MVC
+**9，MVC**
 
 ```
 >TempData的使用首先需要再config中注册services.AddSession()才能使用
 
 ```
 
-10，Core的IIS部署
+**10，Core的IIS部署**
 
 ```
 >core的配置文件读取
@@ -113,7 +113,7 @@ Configuration注入进来的类实现，依赖于Configuration使用xpath来访�
 
 ```
 
-10，Core的Log4net
+**10，Core的Log4net**
 
 ```c#
 //Log4Net的集合,nuget
@@ -135,7 +135,7 @@ public static IHostBuilder CreateHostBuilder(string[] args) =>
 
 ```
 
-11，ServiceCollection的使用
+**11，ServiceCollection的使用**
 
 ```c#
 IServiceCollection container = new ServiceCollection();
@@ -145,7 +145,7 @@ provider.GetService<IService>();
     
 ```
 
-12，三方DI容器Autofac+AOP
+**12，三方DI容器Autofac+AOP**
 
 ```c#
 //autofac+autofac.extension.dependencyinjection
@@ -266,7 +266,7 @@ webhostbuilder类
 
 ```
 
-22，生命周期的测试
+**22，生命周期的测试**
 
 ```
 //构造函数注入
@@ -280,7 +280,7 @@ _service.show();
 
 ```
 
-23，AOP
+**23，AOP**
 
 （1）AOP的运用场景
 
@@ -290,9 +290,108 @@ _service.show();
 
 （2）AOP，中间件UseAuthentication，过滤器AuthorizationFilter思想都是AOP，但是拦截的东西和颗粒度不同
 
-24，DTO
+**24，DTO**
 
 （1）充血模型，就是除了基本的属性外还包含各种方法
+
+**25，Automapper**
+
+
+
+**26，跨域**
+
+（1）没有同源策略的危害：
+
+防止恶性请求，比如恶意站点可以获取其他站点保存的信息
+
+（2）Ajax的请求步骤
+
+> 创建XMLHttpRequest对象
+
+> 使用open方法设置请求参数，open(method,url,是否异步)
+
+> 发送请求
+
+> 注册事件，注册onreadystatechange事件
+
+> 获取返回数据，更新UI
+
+（3）JSONP：
+
+通过script标签不受同源策略限制可以发送跨域请求
+
+（4）Proxy：
+
+
+
+**27，Win部署**
+
+（1）SCD，独立发布部署，不需要框架依赖,放到一台没有安装sdk和runtime的环境进行部署
+
+（2）部署成service，使用nssm软件
+
+```
+>nssm install
+```
+
+（3）IIS托管，爆出的错误一般是windows hosting 的未安装
+
+**28，Linux部署**
+
+（1）安装https://docs.microsoft.com/zh-cn/dotnet/core/install/linux-package-manager-centos7
+
+（2）运行
+
+（3）守护进程：PM2或linux自带的守护进程
+
+可以用Supervisor 实现进程守护
+
+https://www.cnblogs.com/wyt007/p/8288929.html
+
+```c#
+//安装supervisor
+yum install supervisor 
+//启动服务
+supervisord -c /etc/supervisord.conf
+//进入 /etc目录找到supervisord.conf 配置文件 和 supervisord.d 文件夹，并编辑
+[root@VM_0_8_centos etc]# cd supervisord.d/
+[root@VM_0_8_centos supervisord.d]# ls
+[root@VM_0_8_centos supervisord.d]# vim netcoredeploy.ini
+{
+    [program:DeployLinux]   #DeployLinux  为程序的名称
+    command=dotnet DeployLinux.dll #需要执行的命令
+    directory=/home/publish #命令执行的目录
+    environment=ASPNETCORE__ENVIRONMENT=Production #环境变量
+    user=root #用户
+    stopsignal=INT 
+    autostart=true #是否自启动
+    autorestart=true #是否自动重启
+    startsecs=3 #自动重启时间间隔（s）
+    stderr_logfile=/var/log/ossoffical.err.log #错误日志文件
+    stdout_logfile=/var/log/ossoffical.out.log #输出日志文件
+}
+
+supervisorctl reload  //重新加载配置文件
+//如果遇到问题了直接重新安装
+```
+
+（4）坑就是linux可能无法访问sqlserver数据库
+
+（5）nginx的安装，反向代理
+
+（6）centos无法访问sqlserver的问题
+
+https://www.cnblogs.com/xiaxiaolu/p/10309064.html
+
+sqlserver版本太低导致的
+
+https://blog.csdn.net/finn_wft/article/details/89148394
+
+**29，IdentityServer**
+
+
+
+
 
 
 
