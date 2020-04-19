@@ -373,6 +373,10 @@ supervisord -c /etc/supervisord.conf
 
 supervisorctl reload  //重新加载配置文件
 //如果遇到问题了直接重新安装
+如果是独立发布成linux64位的话，需要chmod+x  XXXX程序，不是dll
+root@VM_0_8_centos Linux64_IndepentPub]# chmod +x BangBangFuli.API.MVCDotnet2
+[root@VM_0_8_centos Linux64_IndepentPub]# ./BangBangFuli.API.MVCDotnet2 
+
 ```
 
 （4）坑就是linux可能无法访问sqlserver数据库
@@ -385,13 +389,64 @@ https://www.cnblogs.com/xiaxiaolu/p/10309064.html
 
 sqlserver版本太低导致的
 
-https://blog.csdn.net/finn_wft/article/details/89148394
+https://blog.csdn.net/finn_wft/article/details/89148394  nginx代理
+
+（7）通过在数据库管理工具上执行show @@version 可以查看sqlserver的版本号
+
+目前在windows上sql.client.dll可以访问，linux上需要高版本的sqlserver服务才行
 
 **29，IdentityServer**
 
+（1）一个身份验证框架，可以实现多个项目的集中认证和令牌颁发
 
+（2）但是一些简单的项目用jwt就可以了，如果想要把多个功能模块分散处理，提高安全性的话可以考虑
 
+（3）jwt和OAuth2.0协议：
 
+JWT是个认证框架实现，OAuth2.0是个授权协议，是规范不是实现
+
+（4）一个客户端跳转到授权服务器嘛，然后登录了再跳转过来，增加了个用户角色授权
+
+比如项目地址为IP:1234  ，id4的为IP2：5002，那么在项目登陆界面点击授权登陆时会跳转到5002的授权界面，授权登陆成功后会执行回调地址到IP:1234/index,此时完成登陆操作，无需进行账号密码的登陆
+
+**30，索引器**
+
+```c#
+public class IDXer
+    {
+        private string[] name=new string[10];
+
+        //索引器必须以this关键字定义，其实这个this就是类实例化之后的对象
+        public string this[int index]
+        {
+            get 
+            {
+                return name[index];
+            }
+            set
+            {
+                name[index] = value;
+            }
+        }  
+    }
+
+ public class Program
+    {
+        static void Main(string[] args)
+        {
+            //最简单索引器的使用           
+            IDXer indexer = new IDXer();
+            //“=”号右边对索引器赋值，其实就是调用其set方法
+            indexer[0] = "张三";
+            indexer[1] = "李四";
+            //输出索引器的值，其实就是调用其get方法
+            Console.WriteLine(indexer[0]);
+            Console.WriteLine(indexer[1]);
+            Console.ReadKey();
+        }
+    }
+        
+```
 
 
 
