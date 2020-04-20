@@ -1173,6 +1173,12 @@ acss.ForEach(ac => ac()); // 输出了 0 1 2 3 4
 
 #### 1，简述一下一个引用对象的生命周期？
 
+- new创建对象并分配内存
+- 对象初始化
+- 对象操作、使用
+- 资源清理（非托管资源）
+- GC垃圾回收
+
 #### 2，创建下面对象实例，需要申请多少内存空间？
 
 ```c#
@@ -1188,23 +1194,68 @@ public class User
 
 #### 3，什么是垃圾？
 
+一个变量如果在其生存期内的某一时刻已经不再被引用，那么，这个对象就有可能成为垃圾
+
 #### 4，GC是什么，简述一下GC的工作方式？
+
+GC是**垃圾回收（Garbage Collect）**的缩写，是.NET核心机制的重要部分。她的基本工作原理就是遍历托管堆中的对象，标记哪些被使用对象（哪些没人使用的就是所谓的垃圾），然后把可达对象转移到一个连续的地址空间（也叫压缩），其余的所有没用的对象内存被回收掉。
 
 #### 5，GC进行垃圾回收时的主要流程是？
 
+**① 标记：**先假设所有对象都是垃圾，根据应用程序根Root遍历堆上的每一个引用对象，生成可达对象图，对于还在使用的对象（可达对象）进行标记（其实就是在对象同步索引块中开启一个标示位）。
+
+**② 清除**：针对所有不可达对象进行清除操作，针对普通对象直接回收内存，而对于实现了终结器的对象（实现了析构函数的对象）需要单独回收处理。清除之后，内存就会变得不连续了，就是步骤3的工作了。
+
+**③ 压缩**：把剩下的对象转移到一个连续的内存，因为这些对象地址变了，还需要把那些Root跟指针的地址修改为移动后的新地址。
+
 #### 6，GC在哪些情况下回进行回收工作？
+
+- 内存不足溢出时（0代对象充满时）
+- Windwos报告内存不足时，CLR会强制执行垃圾回收
+- CLR卸载AppDomian，GC回收所有
+- 调用GC.Collect
+- 其他情况，如主机拒绝分配内存，物理内存不足，超出短期存活代的存段门限
 
 #### 7， using() 语法是如何确保对象资源被释放的？如果内部出现异常依然会释放资源吗？
 
+using() 只是一种语法形式，其本质还是try…finally的结构，可以保证Dispose始终会被执行。
+
 #### 8，解释一下C#里的析构函数？为什么有些编程建议里不推荐使用析构函数呢？
+
+C#里的析构函数其实就是终结器Finalize，因为长得像C++里的析构函数而已。
+
+有些编程建议里不推荐使用析构函数要原因在于：第一是Finalize本身性能并不好；其次很多人搞不清楚Finalize的原理，可能会滥用，导致内存泄露，因此就干脆别用了
 
 #### 9，Finalize() 和 Dispose() 之间的区别？
 
+Finalize() 和 Dispose()都是.NET中提供释放非托管资源的方式，他们的主要区别在于执行者和执行时间不同：
+
+- finalize由垃圾回收器调用；dispose由对象调用。
+- finalize无需担心因为没有调用finalize而使非托管资源得不到释放，而dispose必须手动调用。
+- finalize不能保证立即释放非托管资源，Finalizer被执行的时间是在对象不再被引用后的某个不确定的时间；而dispose一调用便释放非托管资源。
+- 只有class类型才能重写finalize，而结构不能；类和结构都能实现IDispose。
+
+另外一个重点区别就是终结器会导致对象复活一次，也就说会被GC回收两次才最终完成回收工作，这也是有些人不建议开发人员使用终结器的主要原因。
+
 #### 10，Dispose和Finalize方法在何时被调用？
+
+- Dispose一调用便释放非托管资源；
+- Finalize不能保证立即释放非托管资源，Finalizer被执行的时间是在对象不再被引用后的某个不确定的时间；
 
 #### 11，NET中的托管堆中是否可能出现内存泄露的现象？
 
+是的，可能会。比如：
+
+- 不正确的使用静态字段，导致大量数据无法被GC释放；
+- 没有正确执行Dispose()，非托管资源没有得到释放；
+- 不正确的使用终结器Finalize()，导致无法正常释放资源；
+- 其他不正确的引用，导致大量托管对象无法被GC释放；
+
 #### 12，在托管堆上创建新对象有哪几种常见方式？
+
+- new一个对象；
+- 字符串赋值，如string s1=”abc”；
+- 值类型装箱；
 
 #### 13，对象创建
 
@@ -1242,6 +1293,428 @@ public class User
 - 大对象堆(Large Object Heap)，大于85000字节的大对象会分配到这个区域，这个区域的主要特点就是：不会轻易被回收；就是回收了也不会被压缩（因为对象太大，移动复制的成本太高了）；
 
 ![image](https://images2015.cnblogs.com/blog/151257/201603/151257-20160309235624382-1396676769.png)
+
+
+
+
+
+#### 15，非托管资源回收
+
+.NET中提供释放非托管资源的方式主要是：**Finalize**() 和 **Dispose**()。
+
+#### **Dispose**()：
+
+常用的大多是Dispose模式，主要实现方式就是实现IDisposable接口，下面是一个简单的IDisposable接口实现方式。
+
+```c#
+public class SomeType : IDisposable
+{
+    public MemoryStream _MemoryStream;
+    public void Dispose()
+    {
+        if (_MemoryStream != null) _MemoryStream.Dispose();
+    }
+}
+```
+
+Dispose需要手动调用，在.NET中有两中调用方式：
+
+```c#
+//方式1：显示接口调用
+SomeType st1=new SomeType();
+//do sth
+st1.Dispose();
+
+//方式2：using()语法调用，自动执行Dispose接口
+using (var st2 = new SomeType())
+{
+    //do sth
+}
+```
+
+第一种方式，显示调用，缺点显而易见，如果程序猿忘了调用接口，则会造成资源得不到释放。或者调用前出现异常，当然这一点可以使用try…finally避免。
+
+一般都建议使用第二种实现方式，他可以保证无论如何Dispose接口都可以得到调用，原理其实很简单，using()的IL代码如下图，因为using只是一种语法形式，本质上还是try…finally的结构。
+
+![image](https://images2015.cnblogs.com/blog/151257/201603/151257-20160309235625475-414934067.png)
+
+### **Finalize**() ：终结器（析构函数）
+
+首先了解下Finalize方法的来源，她是来自System.Object中受保护的虚方法Finalize，无法被子类显示重写，也无法显示调用，是不是有点怪？。她的作用就是用来释放非托管资源，由GC来执行回收，因此可以保证非托管资源可以被释放。
+
+- 无法被子类显示重写：.NET提供类似C++析构函数的形式来实现重写，因此也有称之为析构函数，但其实她只是外表和C++里的析构函数像而已。
+- 无法显示调用：由GC来管理和执行释放，不需要手动执行了，再也不用担心猿们忘了调用Dispose了。
+
+#### 16，性能优化建议
+
+**尽量不要手动执行垃圾回收的方法：GC.Collect()**
+
+垃圾回收的运行成本较高（涉及到了对象块的移动、遍历找到不再被使用的对象、很多状态变量的设置以及Finalize方法的调用等等），对性能影响也较大，因此我们在编写程序时，应该避免不必要的内存分配，也尽量减少或避免使用GC.Collect()来执行垃圾回收，一般GC会在最适合的时间进行垃圾回收。
+
+而且还需要注意的一点，在执行垃圾回收的时候，所有线程都是要被挂起的（如果回收的时候，代码还在执行，那对象状态就不稳定了，也没办法回收了）。
+
+**推荐Dispose代替Finalize**
+
+如果你了解GC内存管理以及Finalize的原理，可以同时使用Dispose和Finalize双保险，否则尽量使用Dispose。
+
+**选择合适的垃圾回收机制：工作站模式、服务器模式**
+
+# 多线程编程与线程同步
+
+#### 1，描述线程与进程的区别？
+
+- 一个应用程序实例是一个进程，一个进程内包含一个或多个线程，线程是进程的一部分；
+- 进程之间是相互独立的，他们有各自的私有内存空间和资源，进程内的线程可以共享其所属进程的所有资源；
+
+#### 2，为什么GUI不支持跨线程访问控件？一般如何解决这个问题？
+
+因为GUI应用程序引入了一个特殊的线程处理模型，为了保证UI控件的线程安全，这个线程处理模型不允许其他子线程跨线程访问UI元素。解决方法还是比较多的，如：
+
+- 利用UI控件提供的方法，Winform是控件的Invoke方法，WPF中是控件的Dispatcher.Invoke方法；
+- 使用BackgroundWorker；
+- 使用GUI线程处理模型的同步上下文SynchronizationContext来提交UI更新操作
+
+#### 3，简述后台线程和前台线程的区别？
+
+应用程序必须运行完所有的前台线程才可以退出，或者主动结束前台线程，不管后台线程是否还在运行，应用程序都会结束；而对于后台线程，应用程序则可以不考虑其是否已经运行完毕而直接退出，所有的后台线程在应用程序退出时都会自动结束。
+
+通过将 Thread.IsBackground 设置为 true，就可以将线程指定为后台线程，主线程就是一个前台线程。
+
+#### 4，说说常用的锁，lock是一种什么样的锁？
+
+常用的如如SemaphoreSlim、ManualResetEventSlim、Monitor、ReadWriteLockSlim，lock是一个混合锁，其实质是Monitor
+
+#### 5， lock为什么要锁定一个参数，可不可锁定一个值类型？这个参数有什么要求？
+
+lock的锁对象要求为一个引用类型。她可以锁定值类型，但值类型会被装箱，每次装箱后的对象都不一样，会导致锁定无效。
+
+对于lock锁，锁定的这个对象参数才是关键，这个参数的同步索引块指针会指向一个真正的锁（同步块），这个锁（同步块）会被复用。
+
+#### 6，多线程和异步有什么关系和区别？
+
+多线程是实现异步的主要方式之一，异步并不等同于多线程。实现异步的方式还有很多，比如利用硬件的特性、使用进程或纤程等。在.NET中就有很多的异步编程支持，比如很多地方都有Begin***、End***的方法，就是一种异步编程支持，她内部有些是利用多线程，有些是利用硬件的特性来实现的异步编程。
+
+#### 7，线程池的优点有哪些？又有哪些不足？
+
+优点：减小线程创建和销毁的开销，可以复用线程；也从而减少了线程上下文切换的性能损失；在GC回收时，较少的线程更有利于GC的回收效率。
+
+缺点：线程池无法对一个线程有更多的精确的控制，如了解其运行状态等；不能设置线程的优先级；加入到线程池的任务（方法）不能有返回值；对于需要长期运行的任务就不适合线程池。
+
+#### 8，Mutex和lock有何不同？一般用哪一个作为锁使用更好？
+
+Mutex是一个基于内核模式的互斥锁，支持锁的递归调用，而Lock是一个混合锁，一般建议使用Lock更好，因为lock的性能更好。
+
+#### 9，下面的代码，调用方法DeadLockTest（20），是否会引起死锁？并说明理由。
+
+```c#
+public void DeadLockTest(int i)
+{
+    lock (this)   //或者lock一个静态object变量
+    {
+        if (i > 10)
+        {
+            Console.WriteLine(i--);
+            DeadLockTest(i);
+        }
+    }
+}
+//不会的，因为lock是一个混合锁，支持锁的递归调用，如果你使用一个ManualResetEvent或AutoResetEvent可能就会发生死锁。
+```
+
+#### 10，用双检锁实现一个单例模式Singleton。
+
+```c#
+ public static class Singleton<T> where T : class,new()
+    {
+        private static T _Instance;
+        private static object _lockObj = new object();
+
+        /// <summary>
+        /// 获取单例对象的实例
+        /// </summary>
+        public static T GetInstance()
+        {
+            if (_Instance != null) return _Instance;
+            lock (_lockObj)
+            {
+                if (_Instance == null)
+                {
+                    var temp = Activator.CreateInstance<T>();
+                    System.Threading.Interlocked.Exchange(ref _Instance, temp);
+                }
+            }
+            return _Instance;
+        }
+    }
+```
+
+#### 11，下面代码输出结果是什么？为什么？如何改进她？
+
+```c#
+int a = 0;
+System.Threading.Tasks.Parallel.For(0, 100000, (i) =>
+{
+    a++; 
+});
+Console.Write(a);
+//输出结果不稳定，小于等于100000。因为多线程访问，没有使用锁机制，会导致有更新丢失。
+```
+
+#### 12，进程
+
+每一个进程有一个或多个线程，进程内多个线程可以共享所属进程的资源和数据，**线程是操作系统调度的基本单元**。线程是由操作系统来调度和执行的，她的基本状态如下图。、
+
+![image](https://images2015.cnblogs.com/blog/151257/201603/151257-20160321141550120-2131692214.png)
+
+上面了解了线程的基本原理和诸多优点后，如果你是一个爱思考的猿类，应该会很容易发现很多疑问，比如把任务添加到线程池队列后，怎么取消或挂起呢？如何知道她执行完了呢？下面来总结一下线程池的不足：
+
+- 线程池内的线程不支持线程的挂起、取消等操作，如想要取消线程里的任务，.NET支持一种协作式方式取消，使用起来也不少很方便，而且有些场景并不满足需求；
+- 线程内的任务没有返回值，也不知道何时执行完成；
+- 不支持设置线程的优先级，还包括其他类似需要对线程有更多的控制的需求都不支持；
+
+因此微软为我们提供了另外一个东西叫做Task来补充线程池的某些不足。
+
+任务Task与并行Parallel本质上内部都是使用的线程池，提供了更丰富的并行编程的方式。任务Task基于线程池，可支持返回值，支持比较强大的任务执行计划定制等功能，下面是一个简单的示例。Task提供了很多方法和属性，通过这些方法和属性能够对Task的执行进行控制，并且能够获得其状态信息。Task的创建和执行都是独立的，因此可以对关联操作的执行拥有完全的控制权。
+
+```c#
+//创建一个任务
+Task<int> t1 = new Task<int>(n =>
+{
+    System.Threading.Thread.Sleep(1000);
+    return (int)n;
+}, 1000);
+//定制一个延续任务计划
+t1.ContinueWith(task =>
+{
+    Console.WriteLine("end" + t1.Result);
+}, TaskContinuationOptions.AttachedToParent);
+t1.Start();
+//使用Task.Factory创建并启动一个任务
+var t2 = System.Threading.Tasks.Task.Factory.StartNew(() =>
+{
+    Console.WriteLine("t1:" + t1.Status);
+});
+Task.WaitAll();
+Console.WriteLine(t1.Result);
+```
+
+并行Parallel内部其实使用的是Task对象（TPL会在内部创建System.Threading.Tasks.Task的实例），所有并行任务完成后才会返回。少量短时间任务建议就不要使用并行Parallel了，并行Parallel本身也是有性能开销的，而且还要进行并行任务调度、创建调用方法的委托等等。
+
+![img](https://images0.cnblogs.com/blog/333725/201408/221025576742743.png)
+
+#### 13，GUI线程处理模型
+
+这是很多开发C/S客户端应用程序会遇到的问题，GUI程序的界面控件不允许跨线程访问，如果在其他线程中访问了界面控件，运行时就会抛出一个异常，就像下面的图示，是不是很熟悉！这其中的罪魁祸首就是，就是“GUI的线程处理模型”。
+
+![image](https://images2015.cnblogs.com/blog/151257/201603/151257-20160321141551714-1827445547.png)
+
+.NET支持多种不同应用程序模型，大多数的线程都是可以做任何事情（他们可能没有引入线程模型），但GUI应用程序（主要是Winform、WPF）引入了一个特殊线程处理模型，UI控件元素只能由创建它的线程访问或修改，微软这样处理是为了保证UI控件的线程安全。
+
+为什么在UI线程中执行一个耗时的计算操作，会导致UI假死呢？这个问题要追溯到Windows的消息机制了。
+
+因为Windows是基于消息机制的，我们在UI上所有的键盘、鼠标操作都是以消息的形式发送给各个应用程序的。GUI线程内部就有一个消息队列，GUI线程不断的循环处理这些消息，并根据消息更新UI的呈现。如果这个时候，你让GUI线程去处理一个耗时的操作（比如花10秒去下载一个文件），那GUI线程就没办法处理消息队列了，UI界面就处于假死的状态。
+
+那我们该怎么办呢？不难想到使用线程，那在线程里处理事件完成后，需要更新UI控件的状态，又该怎么办呢？常用几种方式：
+
+**① 使用GUI控件提供的方法，Winform是控件的Invoke方法，WPF中是控件的Dispatcher.Invoke方法**
+
+```c#
+//1.Winform：Invoke方法和BeginInvoke
+ this.label.Invoke(method, null); 
+
+//2.WPF：Dispatcher.Invoke
+ this.label.Dispatcher.Invoke(method, null);
+```
+
+**② 使用.NET中提供的BackgroundWorker执行耗时计算操作，在其任务完成事件RunWorkerCompleted 中更新UI控件**
+
+```c#
+using (BackgroundWorker bw = new BackgroundWorker())
+{
+    bw.RunWorkerCompleted += new RunWorkerCompletedEventHandler((ojb,arg) =>
+    {
+        this.label.Text = "anidng";
+    });
+    bw.RunWorkerAsync();
+}
+```
+
+**③ 看上去很高大上的方法：使用GUI线程处理模型的同步上下文来送封UI控件修改操作，这样可以不需要调用UI控件元素**
+
+.NET中提供一个用于同步上下文的类SynchronizationContext，利用它可以把应用程序模型链接到他的线程处理模型，其实它的本质还是调用的第一步**①**中的方法。
+
+实现代码分为三步，第一步定义一个静态类，用于GUI线程的UI元素访问封装：
+
+```
+public static class GUIThreadHelper
+{
+    public static System.Threading.SynchronizationContext GUISyncContext
+    {
+        get { return _GUISyncContext; }
+        set { _GUISyncContext = value; }
+    }
+
+    private static System.Threading.SynchronizationContext _GUISyncContext =
+        System.Threading.SynchronizationContext.Current;
+
+    /// <summary>
+    /// 主要用于GUI线程的同步回调
+    /// </summary>
+    /// <param name="callback"></param>
+    public static void SyncContextCallback(Action callback)
+    {
+        if (callback == null) return;
+        if (GUISyncContext == null)
+        {
+            callback();
+            return;
+        }
+        GUISyncContext.Post(result => callback(), null);
+    }
+
+    /// <summary>
+    /// 支持APM异步编程模型的GUI线程的同步回调
+    /// </summary>
+    public static AsyncCallback SyncContextCallback(AsyncCallback callback)
+    {
+        if (callback == null) return callback;
+        if (GUISyncContext == null) return callback;
+        return asynresult => GUISyncContext.Post(result => callback(result as IAsyncResult), asynresult);
+    }
+}
+```
+
+第二步，在主窗口注册当前SynchronizationContext：
+
+```
+public partial class MainWindow : Window
+    {
+        public MainWindow()
+        {
+            InitializeComponent();
+            CLRTest.ConsoleTest.GUIThreadHelper.GUISyncContext = System.Threading.SynchronizationContext.Current;
+        }
+```
+
+第三步，就是使用了，可以在任何地方使用
+
+```
+GUIThreadHelper.SyncContextCallback(() =>
+{
+    this.txtMessage.Text = res.ToString();
+    this.btnTest.Content = "DoTest";
+    this.btnTest.IsEnabled = true;
+});
+```
+
+#### 14，线程同步
+
+基元用户模式比基元内核模式速度要快，她使用特殊的cpu指令来协调线程，在硬件中发生，速度很快。但也因此Windows操作系统永远检测不到一个线程在一个用户模式构造上阻塞了。举个例子来模拟一下用户模式构造的同步方式：
+
+- 线程1请求了临界资源，并在资源门口使用了用户模式构造的锁；
+- 线程2请求临界资源时，发现有锁，因此就在门口等待，并不停的去询问资源是否可用；
+- 线程1如果使用资源时间较长，则线程2会一直运行，并且占用CPU时间。占用CPU干什么呢？她会不停的轮询锁的状态，直到资源可用，这就是所谓的活锁；
+
+缺点有没有发现？线程2会一直使用CPU时间（假如当前系统只有这两个线程在运行），**也就意味着不仅浪费了CPU时间，而且还会有频繁的线程上下文切换，对性能影响是很严重的**。
+
+当然她的优点是效率高，适合哪种对资源占用时间很短的线程同步。.NET中为我们提供了两种原子性操作，利用原子操作可以实现一些简单的用户模式锁（如自旋锁）。
+
+**System.Threading.Interlocked**：易失构造，它在包含一个简单数据类型的变量上执行原子性的读**或**写操作。
+
+**Thread.VolatileRead 和 Thread.VolatileWrite**：互锁构造，它在包含一个简单数据类型的变量上执行原子性的读**和**写操作。
+
+以上两种原子性操作的具体内涵这里就细说了（有兴趣可以去研究文末给出的参考书籍或资料），针对题目11，来看一下题目代码：
+
+```
+int a = 0;
+System.Threading.Tasks.Parallel.For(0, 100000, (i) =>
+{
+    a++; 
+});
+Console.Write(a);
+```
+
+上面代码是通过并行（多线程）来更新共享变量a的值，结果肯定是小于等于100000的，具体多少是不稳定的。解决方法，可以使用我们常用的Lock，还有更有效的就是使用**System.Threading.Interlocked**提供的原子性操作，保证对a的值操作每一次都是原子性的：
+
+```
+System.Threading.Interlocked.Add(ref a, 1);//正确
+```
+
+下面的图是一个简单的性能验证测试，分别使用Interlocked、不用锁、使用lock锁三种方式来测试。不用锁的结果是95，这答案肯定不是你想要的，另外两种结果都是对的，性能差别却很大。
+
+![image](https://images2015.cnblogs.com/blog/151257/201603/151257-20160321141552745-340143015.png)
+
+这是针对用户模式的一个补充，先模拟一个内核模式构造的同步流程来理解她的工作方式：
+
+- 线程1请求了临界资源，并在资源门口使用了内核模式构造的锁；
+- 线程2请求临界资源时，发现有锁，就会被系统要求睡眠（阻塞），线程2就不会被执行了，也就不会浪费CPU和线程上下文切换了；
+- 等待线程1使用完资源后，解锁后会发送一个通知，然后操作系统会把线程2唤醒。假如有多个线程在临界资源门口等待，则会挑选一个唤醒；
+
+看上去是不是非常棒！彻底解决了用户模式构造的缺点，但内核模式也有缺点的：将线程从用户模式切换到内核模式（或相反）导致巨大性能损失。调用线程将从托管代码转换为内核代码，再转回来，会浪费大量CPU时间，同时还伴随着线程上下文切换，因此尽量不要让线程从用户模式转到内核模式。
+
+她的优点就是阻塞线程，不浪费CPU时间，适合那种需要长时间占用资源的线程同步。
+
+内核模式构造的主要有两种方式，以及基于这两种方式的常见的锁：
+
+- **基于事件**：如AutoResetEvent、ManualResetEvent
+- **基于信号量**：如Semaphore
+
+既然内核模式和用户模式都有优缺点，混合构造就是把两者结合，充分利用两者的优点，把性能损失降到最低。大概的思路很好理解，就是如果是在没有资源竞争，或线程使用资源的时间很短，就是用用户模式构造同步，否则就升级到内核模式构造同步，其中最典型的代表就是Lock了。
+
+常用的混合锁还不少呢！如SemaphoreSlim、ManualResetEventSlim、Monitor、ReadWriteLockSlim，这些锁各有特点和锁使用的场景。这里主要就使用最多的lock来详细了解下。
+
+lock的本质就是使用的Monitor，lock只是一种简化的语法形式，实质的语法形式如下：
+
+```c#
+bool lockTaken = false;
+try
+{
+    Monitor.Enter(obj, ref lockTaken);
+    //...
+}
+finally
+{
+    if (lockTaken) Monitor.Exit(obj);
+}
+```
+
+那lock或Monitor需要锁定的那个对象是什么呢？注意这个对象才是锁的关键，在此之前，需要先回顾一下引用对象的同步索引块（AsynBlockIndex），这是前面文章中提到过的引用对象的标准配置之一（还有一个是类型对象指针TypeHandle），它的作用就在这里了。
+
+同步索引块是.NET中解决对象同步问题的基本机制，该机制为每个堆内的对象（即引用类型对象实例）分配一个同步索引，她其实是一个地址指针，初始值为-1不指向任何地址。
+
+- 创建一个锁对象Object obj，obj的同步索引块（地址）为-1，不指向任何地址；
+- Monitor.Enter（obj），创建或使用一个空闲的同步索引块（如下图中的同步块1），（[图片来源](http://www.cnblogs.com/edisonchou/p/4848131.html)），这个才是真正的同步索引块，其内部结构就是一个混合锁的结构，包含线程ID、递归计数、等待线程统计、内核对象等，类似一个混合锁AnotherHybridLock。obj对象（同步索引块AsynBlockIndex）指向该同步块1；
+- Exit时，重置为-1，那个同步索引块1可以被重复利用；
+
+![381412-20150930224247574-1653709348](https://images2015.cnblogs.com/blog/151257/201603/151257-20160321141553854-448927161.jpg)
+
+因此，锁对象要求必须为一个引用对象（在堆上）。
+
+### 多线程使用及线程同步总结
+
+首先还是尽量避免线程同步，不管使用什么方式都有不小的性能损失。一般情况下，大多使用Lock，这个锁是比较综合的，适应大部分场景。在性能要求高的地方，或者根据不同的使用场景，可以选择更符合要求的锁。
+
+在使用Lock时，关键点就是锁对象了，需要注意以下几个方面：
+
+- 这个对象肯定要是引用类型，值类型可不可呢？值类型可以装箱啊！你觉得可不可以？但也不要用值类型，因为值类型多次装箱后的对象是不同的，会导致无法锁定；
+- 不要锁定this，尽量使用一个没有意义的Object对象来锁；
+- 不要锁定一个类型对象，因类型对象是全局的；
+- 不要锁定一个字符串，因为字符串可能被驻留，不同字符对象可能指向同一个字符串；
+- 不要使用[System.Runtime.CompilerServices.MethodImpl(MethodImplOptions.Synchronized)]，这个可以使用在方法上面，保证方法同一时刻只能被一个线程调用。她实质上是使用lock的，如果是实例方法，会锁定this，如果是静态方法，则会锁定类型对象；
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
