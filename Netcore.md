@@ -448,6 +448,399 @@ public class IDXer
         
 ```
 
+# 缓存专题
+
+#### **1，总览**
+
+客户端->反向代理->本地->分布式缓存
+
+Aspnetcore的缓存机制
+
+#### **2，缓存全景图**
+
+（1）浏览器---客户端缓存，通过F12可以看出来
+
+（2）DNS----CDN缓存
+
+（3）反向代理----负载均衡
+
+（4）服务器-----本地缓存，DB
+
+（5）还有分布式缓存
+
+![image-20200420213012804](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200420213012804.png)
+
+浏览器缓存：
+
+![image-20200420213147674](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200420213147674.png)
+
+#### 3，http协议缓存
+
+responseheader
+
+（1）是否缓存Expires ，Cache-Control
+
+（2）缓存时间，Etag，Last-Modified
+
+```
+public IActionResult Privacy()
+{
+	base.HttpContext.Response.Headers["Cache-Control"]="public,max-age=600";
+}
+```
+
+![image-20200421103503472](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200421103503472.png)
+
+（3）etag：response返回304，代表从缓存重读取，资源未更新
+
+#### 4，CDN缓存
+
+![image-20200421105339077](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200421105339077.png)
+
+（1）CDN和反向代理的关系
+
+cdn是正向代理
+
+#### 5，IIS缓存
+
+（1）在conf中进行配置
+
+#### 6，服务端缓存
+
+（1）nuget MemoryCache
+
+（2）引入IMemoryCache
+
+（3）集群部署：通过netcore的入参启动不同端口号服务进程，一个程序启动多个进程，然后再nginx中配置
+
+![image-20200421123131764](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200421123131764.png)
+
+
+
+![image-20200421123559876](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200421123559876.png)
+
+
+
+（4）分布式缓存是redis
+
+![image-20200421133327220](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200421133327220.png)
+
+
+
+#### 7，中间件（Middleware）和过滤器（Filter）的区别
+
+源码分析
+
+![image-20200421141416837](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200421141416837.png)
+
+
+
+（1）基于IResouceFilter 扩展定制缓存实现，对Action进行了拦截
+
+#### 8，中间件缓存
+
+（1）services.AddResponseCaching()
+
+（2）app.useResponseCaching()
+
+![image-20200421142930006](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200421142930006.png)
+
+#### 9，缓存穿透，缓存击穿，缓存雪崩
+
+参考https://blog.csdn.net/kongtiao5/article/details/82771694
+
+https://www.jianshu.com/p/d00348a9eb3b
+
+（1）缓存穿透：直接把null存起来，或者直接接口进行过滤。
+
+（2）缓存击穿：某个值突然过期，此时大量请求突然涌入数据库，导致数据库崩掉
+
+让热点数据不过期。
+
+（3）缓存雪崩：大量的key同时失效，数据库压力太大，导致db挂掉
+
+随机过期时间，避免同时过期，或者不过期只更新，分布式数据均衡分配
+
+# Net5入门
+
+![image-20200421181529215](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200421181529215.png)
+
+#### 1，nginx配置
+
+![image-20200421181848866](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200421181848866.png)
+
+
+
+（1）集群，负载均衡，在nginx中配置weight
+
+（3）session的解决方案：
+
+StateServer,Sqlserver,Redis，cookie验证，token（JWT，IDS4）
+
+#### 2，根据ISession的衍生
+
+（1）接口最小化涉及
+
+（2）组件化开发，通过扩展方法--减小体积
+
+（3）IOC---只依赖抽象，不依赖于细节
+
+
+
+#### 3，Aspnet的管道模型
+
+![image-20200421192139819](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200421192139819.png)
+
+
+
+（1）基本流程是通过事件进行处理
+
+比如在框架内部会一一执行事件，事件注册的话，就执行注册成功的委托，相当于是一一执行事件函数
+
+![image-20200421192722691](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200421192722691.png)
+
+![image-20200421192804773](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200421192804773.png)
+
+![image-20200421192823632](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200421192823632.png)
+
+（2）把所有环节固定执行，通过事件完成扩展，这套涉及思想已经陈旧了，而且会导致框架庞大臃肿
+
+![image-20200421193649445](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200421193649445.png)
+
+（3）Redis注册,做分布式session
+
+```c#
+public void ConfigureService(IServiceCollection services)
+{
+	services.AddDistributedRedisCache(
+		options => {
+            options.Configuration = "127.0.0.1:6379";
+			options.InstanceName = "Redistest";
+		}
+	);
+}
+```
+
+（4）中间件的写法
+
+![image-20200421204131409](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200421204131409.png)
+
+（5）中间件的作用
+
+日志监控，缓存，针对http请求，黑白名单，鉴权
+
+（6）不同层级AOP
+
+下面是不同filter的执行顺序
+
+![image-20200422100729509](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200422100729509.png)
+
+过滤器作用域设置是非常灵活的，可以选择为：
+
+1. 全局有效（*整个 MVC 应用程序下的每一个 Action*）；
+2. 仅对某些 Controller 有效 (*控制器内所有的 Action* )；
+3. 仅对某些 Action 有效;
+
+#### Authorization Filter
+
+授权过滤器在过滤器管道中第一个被执行，通常用于验证请求的合法性（*通过实现接口 IAuthorizationFilter or IAsyncAuthorizationFilter*）
+
+#### Resource Filter
+
+资源过滤器在过滤器管道中第二个被执行，通常用于请求结果的缓存和短路过滤器管道（*通过实现接口 IResourceFilter or IAsyncResourceFilter*）
+
+#### Action Filter
+
+Acioin 过滤器可设置在调用 Acioin 方法之前和之后执行代码，如：请求参数的验证（*通过实现接口 IActionFilter or IAsyncActionFilter*）
+
+#### Exception Filter
+
+程序异常信息处理（*通过实现接口 IExceptionFilter or IAsyncExceptionFilter*）
+
+#### Result Filter
+
+Action 执行完成后执行，对执行结果格式化处理（*通过实现接口 IResultFilter or IAsyncResultFilter*）
+
+```c#
+public class CustomExceptionFilterAttribute : ExceptionFilterAttribute
+{
+  public override void OnException(ExceptionContext context)
+  {
+    context.Result = new ObjectResult(new ApiResult()
+    {
+      Code = Enum.ResultCode.Exception,
+      ErrorMessage = $"CustomExceptionFilterAttribute: {context.Exception.Message}"
+    });
+  }
+}
+```
+
+```c#
+[CustomExceptionFilter]
+public ApiResult ExceptionAttributeTest()
+{
+  throw new Exception("Boom");
+}
+```
+
+参考https://www.jianshu.com/p/c7c7b6bf79f7
+
+https://docs.microsoft.com/en-us/aspnet/core/mvc/controllers/filters?view=aspnetcore-2.1
+
+https://www.cnblogs.com/dotNETCoreSG/p/aspnetcore-4_4_3-filters.html
+
+*只能* 实现一个过滤器接口，要么是同步版本的，要么是异步版本的，*鱼和熊掌不可兼得* 。如果你需要在接口中执行异步工作，那么就去实现异步接口。否则应该实现同步版本的接口。框架会首先检查是不是实现了异步接口，如果实现了异步接口，那么将调用它。不然则调用同步接口的方法。如果一个类中实现了两个接口，那么只有异步方法会被调用。最后，不管 action 是同步的还是异步的，过滤器的同步或是异步是独立于 action 的。
+
+## 过滤器作用域
+
+过滤器具有三种不同级别的 *作用域* 。你可以在特定的 action 上用特性（Attribute）的方式使用特定的过滤器；也可以在控制器上用特性的方式使用过滤器，这样就会将效果应用在控制器内所有的 action 上；或者注册一个全局过滤器，它将作用于整个 MVC 应用程序下的每一个 action。
+
+如果想要使用全局过滤器的话，在你配置 MVC 的时候在 `Startup` 的 `ConfigureServices` 方法中添加：
+
+```c#
+public void ConfigureServices(IServiceCollection services)
+{
+    services.AddMvc(options =>
+    {
+        options.Filters.Add(typeof(SampleActionFilter)); // by type
+        options.Filters.Add(new SampleGlobalActionFilter()); // an instance
+    });
+
+    services.AddScoped<AddHeaderFilterWithDi>();
+}
+```
+
+熟悉MVC框架的同学应该知道，MVC也提供了5大过滤器供我们用来处理请求前后需要执行的代码。分别是`AuthenticationFilter`,`AuthorizationFilter`,`ActionFilter`,`ExceptionFilter`,`ResultFilter`。
+
+根据描述，可以看出中间件和过滤器的功能类似，那么他们有什么区别？为什么又要搞一个中间件呢？
+其实，过滤器和中间件他们的关注点是不一样的，也就是说职责不一样，干的事情就不一样。
+
+> 举个栗子，中间件像是`埃辛诺斯战刃`，过滤器像是`巨龙之怒，泰蕾苟萨的寄魂杖` ,你一个战士拿着`巨龙之怒，泰蕾苟萨的寄魂杖`去战场杀人，虽然都有伤害，但是你拿着法杖伤害低不说，还减属性啊。
+
+同作为两个AOP利器，过滤器更贴合业务，它关注于应用程序本身，比如你看`ActionFilter` 和 `ResultFilter`，它都直接和你的Action，ActionResult交互了，是不是离你很近的感觉，那我有一些比如对我的输出结果进行格式化啦，对我的请求的ViewModel进行数据验证啦，肯定就是用Filter无疑了。它是MVC的一部分，它可以拦截到你Action上下文的一些信息，而中间件是没有这个能力的。
+
+那么，何时使用中间件呢？我的理解是在我们的应用程序当中和业务关系不大的一些需要在管道中做的事情可以使用，比如**身份验证，Session存储，日志记录**等。其实我们的 asp.net core项目中本身已经包含了很多个中间件。
+
+（7）代码分层--业务下沉-----通过依赖注入使用对象---使用aop
+
+如果想要更细化的aop控制，考虑使用autofac，控制力度可以到方法粒度
+
+![image-20200422120000490](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200422120000490.png)
+
+（8）IOC&AOP对业务层进行操作，可以缓存数据，请求要进入action-view
+
+一般用来降低数据库压力，减少数据查询
+
+（9）想缓存数据，但是不进入action，用actionfilter或resourcefilter--进入mvc中
+
+（10）可以再middleware拦截，完全不进入mvc---responsecachemiddleware
+
+（11）AOP的实现方式，解决程序扩展问题
+
+静态实现：代理模式&装饰器模式
+
+动态实现：dynamic proxy
+
+常用的---FIlter，IOC容器扩展autofac
+
+# Asp.netcore3.1 
+
+1，最小化接口设计，扩展方法实现组件化开发，比如日志组件log4net的源码分析
+
+![image-20200422135658441](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200422135658441.png)
+
+2，kestrel是一个简化版的IIS web服务，负责监听请求，转发到代码进行处理
+
+3，http请求管道模型---就是http请求被处理的步骤--http请求是一段协议文本，被Kestrek解析得到httpcontext
+
+---然后被后台改代码处理Request----返回Response---经由Kestrel回发到客户端
+
+所谓管道就是拿着httpcontext，经过多个步骤的加工，生成response
+
+4，中间件代码
+
+```c#
+ Func<RequestDelegate, RequestDelegate> middleware1 = (ctx) => {
+                //对传进来的context ，ctx进行处理
+
+                return new RequestDelegate(async ctx=> {
+                    await Task.CompletedTask;
+                });
+
+     			//两种写法都可以，lambda会自动的被包装成一个委托，本质上lambda是一个函数，只不过编译器会隐式的包装成一个委托
+                //return  async ctx =>
+                //{
+                //    await Task.CompletedTask;
+                //};
+            };
+
+```
+
+5，每一次请求，都会执行一次管道操作
+
+![image-20200422193457352](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200422193457352.png)
+
+```c#
+  #region 自定义middleware
+
+            app.Use(next =>
+            {
+                return async ctx =>
+                {
+                    Console.WriteLine($"Middleware 1 start {DateTime.Now}\n");
+                    await next.Invoke(ctx);
+                    Console.WriteLine($"Middleware 1 end {DateTime.Now}\n");
+                };
+            });
+
+            app.Use(next =>
+            {
+                return async ctx =>
+                {
+                    Console.WriteLine($"Middleware 2 start {DateTime.Now}\n");
+                    await next.Invoke(ctx);
+                    Console.WriteLine($"Middleware 2 end {DateTime.Now}\n");
+                };
+            });
+
+            app.Use(next =>
+            {
+                return async ctx =>
+                {
+                    Console.WriteLine($"Middleware 3 start {DateTime.Now}\n");
+                    await next.Invoke(ctx);
+                    Console.WriteLine($"Middleware 3 end {DateTime.Now}\n");
+                };
+            });
+
+            #endregion
+
+```
+
+![image-20200422215009540](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200422215009540.png)
+
+
+
+6，控制台调试
+
+IIS托管---w3wp
+
+控制器命令行---dotnet
+
+7，Filter构造函数导入的问题
+
+![image-20200423114121645](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200423114121645.png)
+
+
+
+
+
+
+
+
+
+
+
 
 
 
