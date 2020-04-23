@@ -821,16 +821,50 @@ public void ConfigureServices(IServiceCollection services)
 
 
 
-6，控制台调试
+#### 6，控制台调试
 
 IIS托管---w3wp
 
 控制器命令行---dotnet
 
-7，Filter构造函数导入的问题
+#### 7，Filter构造函数导入的问题
 
 ![image-20200423114121645](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200423114121645.png)
 
+（1）结论：特性的构造函数只能是常量不能是变量
+
+（2）通过ServiceFilter来构造，其实是个工厂方法
+
+```c#
+[ServiceFilter(typeof(CustomExceptionFilterAttribute))]
+        public IActionResult ConsoleIndex()
+        {
+            return View();
+        }
+
+```
+
+![image-20200423115446687](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200423115446687.png)
+
+（3）Filter执行顺序
+
+![image-20200423131525394](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200423131525394.png)
+
+![image-20200423151415273](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200423151415273.png)
+
+![image-20200423152922537](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200423152922537.png)
+
+上面这个会导致数据缓存到浏览器端
+
+#### 8，用户登录退出，cookie和session验证
+
+（1）不把验证信息写入cookie和session，写入Claim中
+
+参考 https://www.cnblogs.com/Ivan-Wu/p/10711288.html
+
+#### 9，鉴权UseAuthentication和授权UseAuthentization
+
+（1）认证和授权
 
 
 
@@ -838,14 +872,64 @@ IIS托管---w3wp
 
 
 
+#### 10，EF_codeFirst
 
 
 
+#### 11，分层封装，基本架构
 
 
 
+# 微服务架构
+
+1，分布式架构：
+
+独立部署开发，单体是调用方法BLL---DAL
+
+分布式是调用服务
+
+**和SOA的区别**
+
+![image-20200423211706410](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200423211706410.png)
 
 
 
+SOA是把多个服务整合起来进行管理，微服务是分拆进行服务
 
+2，微服务架构通信
+
+（1）redis/DB/Queue/硬盘文件：被动通讯
+
+（2）通过服务进行通讯：webservice，wcf，webapi，ashx，aspx：主动触发，数据序列化传输，跨平台，跨语言，http穿透防火墙
+
+（3）GRPC，基于HTTP2协议设计
+
+3，微服务架构设计
+
+![image-20200423214809577](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200423214809577.png)
+
+4，启动一个webapi工程，然后从另一个mvc页面发送请求到webapi项目数据，此时会发生跨域问题
+
+跨域问题是浏览器做了限制，但是真实的数据还是返回过来了
+
+![image-20200424002252919](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200424002252919.png)
+
+![image-20200424002323089](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200424002323089.png)
+
+（1）高可用系统通过集群来实现
+
+![image-20200424002638104](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20200424002638104.png)
+
+带来的问题是启动多个实例后怎么进行维护和控制
+
+```c#
+#region 支持命令行参数启动
+
+            var config = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddCommandLine(args)
+                .Build();
+
+#endregion
+```
 
